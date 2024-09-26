@@ -1,4 +1,4 @@
-nltk==3.9.1
-streamlit==1.38.0
-language-tool-python
-
+streamlit
+nltk
+textblob
+pyspellchecker
