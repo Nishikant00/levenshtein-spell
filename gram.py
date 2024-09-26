@@ -5,13 +5,17 @@ from nltk.corpus import words
 from nltk.tokenize import word_tokenize
 from nltk import pos_tag
 from collections import Counter
+from nltk.corpus import wordnet
+import language_tool_python
 
 nltk.download('punkt')
 nltk.download('words')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('punkt_tab') 
-nltk.download('averaged_perceptron_tagger_eng')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
 word_list = set(words.words())
+
+tool = language_tool_python.LanguageTool('en-US')
+dictionary = PyDictionary()
 
 def levenshtein_distance(word1, word2):
     dp = [[0] * (len(word2) + 1) for _ in range(len(word1) + 1)]
@@ -45,20 +49,17 @@ def highlight_mistakes(text, mistakes):
     return text
 
 def basic_grammar_check(text):
-    tokens = word_tokenize(text)
-    tagged = pos_tag(tokens)
-    grammar_issues = []
-    
-    # Simple grammar rules, e.g., detecting noun followed by another noun without an article/preposition
-    for i in range(1, len(tagged)):
-        prev_word, prev_tag = tagged[i - 1]
-        current_word, current_tag = tagged[i]
-        if prev_tag.startswith('NN') and current_tag.startswith('NN'):
-            grammar_issues.append(f"Possible grammar issue near '{prev_word} {current_word}'")
-    
+    matches = tool.check(text)
+    grammar_issues = [f"{rule.message} at position {rule.offset}" for rule in matches]
     return grammar_issues
 
-st.title("Enhanced Grammar and Spell Checker with Levenshtein Distance")
+def get_word_meanings(word):
+    synsets = wordnet.synsets(word)
+    if synsets:
+        return synsets[0].definition()
+    return "No meaning found"
+
+st.title("Enhanced Grammar and Spell Checker with Word Meanings")
 
 text_input = st.text_area("Enter your text here:", height=200)
 
@@ -78,10 +79,16 @@ if st.button("Check"):
                     st.write(f"Suggestions for **{word}**: {', '.join(suggestions)}")
                 else:
                     st.write(f"No suggestions found for **{word}**")
+                
+                # Show word meanings
+                st.markdown(f"**Meaning of {word}:**")
+                meaning = get_word_meanings(word)
+                st.write(meaning)
         
         else:
             st.success("No spelling mistakes found!")
 
+        # Grammar check
         st.markdown("### Grammar Issues:")
         grammar_issues = basic_grammar_check(text_input)
         
