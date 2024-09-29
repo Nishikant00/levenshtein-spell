@@ -7,6 +7,7 @@ from spellchecker import SpellChecker
 import nltk
 nltk.download('reuters')
 nltk.download('punkt_tab')
+nltk.download('brown')
 # Function to clean and tokenize text
 def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
