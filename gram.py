@@ -5,10 +5,11 @@ from nltk.util import ngrams
 from nltk.corpus import reuters, brown
 from spellchecker import SpellChecker
 import nltk
+nltk.download('reuters')
+nltk.download('punkt_tab')
 # Function to clean and tokenize text
 def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
-nltk.download('reuters')
 # Function to build n-gram language model from a corpus
 def build_ngram_model(corpus, n=3):  # Using trigrams for better accuracy
     ngram_counts = Counter()
