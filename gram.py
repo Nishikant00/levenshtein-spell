@@ -4,7 +4,7 @@ from collections import Counter
 from nltk.util import ngrams
 from nltk.corpus import reuters, brown
 from spellchecker import SpellChecker
-
+import nltk
 # Function to clean and tokenize text
 def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
