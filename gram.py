@@ -1,85 +1,77 @@
 import streamlit as st
-from textblob import TextBlob
+import re
+from collections import Counter
+from nltk.util import ngrams
+from nltk.corpus import reuters, brown
 from spellchecker import SpellChecker
-import nltk
 
-# Download necessary NLTK data files
-nltk.download('punkt')
+# Function to clean and tokenize text
+def tokenize(text):
+    return re.findall(r'\b\w+\b', text.lower())
 
-def check_spelling(text):
-    """Check text for spelling errors and suggest corrections."""
-    spell = SpellChecker()
-    words = text.split()
-    corrected_words = []
+# Function to build n-gram language model from a corpus
+def build_ngram_model(corpus, n=3):  # Using trigrams for better accuracy
+    ngram_counts = Counter()
+    for sentence in corpus:
+        tokens = tokenize(" ".join(sentence))
+        ngram_counts.update(ngrams(tokens, n))
+    return ngram_counts
 
-    for word in words:
-        if spell.unknown([word]):
-            corrected_words.append(spell.candidates(word).pop())  # Get the first suggestion
-        else:
-            corrected_words.append(word)
-
-    corrected_text = ' '.join(corrected_words)
-    return corrected_text
-
-def check_text(text):
-    """Check text for grammar and spelling."""
-    blob = TextBlob(text)
-    corrected_text = str(blob.correct())
-    return corrected_text
-
-def analyze_sentence_meaning(text):
-    """Analyze sentence meaning and suggest rephrasing."""
-    blob = TextBlob(text)
-    sentiment = blob.sentiment
+# Function to check grammar using n-grams
+def check_grammar(text, ngram_model, n=3):  # Using trigrams for better accuracy
+    tokens = tokenize(text)
+    ngrams_in_text = list(ngrams(tokens, n))
     
-    # Generate alternative phrasing using synonyms
-    sentences = blob.sentences
-    suggestions = []
+    errors = []
+    for ngram in ngrams_in_text:
+        if ngram_model[ngram] == 0:
+            errors.append(" ".join(ngram))
+    return errors
 
-    for sentence in sentences:
-        words = sentence.words
-        rephrased = []
-        for word in words:
-            # Get synonyms for each word
-            synonyms = set()
-            for syn in word.synsets:
-                for lemma in syn.lemmas():
-                    synonyms.add(lemma.name())
-            # Choose the first synonym (or keep the original if no synonyms)
-            rephrased.append(synonyms.pop() if synonyms else word)
-        suggestions.append(" ".join(rephrased))
+# Build trigram model using Reuters and Brown corpus from NLTK
+def get_corpus():
+    return reuters.sents() + brown.sents()
 
-    return sentiment, " | ".join(suggestions)
+def build_language_model():
+    corpus = get_corpus()
+    trigram_model = build_ngram_model(corpus, n=3)
+    return trigram_model
 
+# Spell checker using pyspellchecker
+spell = SpellChecker()
+
+# Streamlit App
 def main():
-    """Main function to run the Streamlit app."""
-    st.title("Grammar, Spell, and Meaning Checker")
-    
-    st.write("Enter the text you want to check for grammar, spelling errors, and meaning:")
-    user_input = st.text_area("Input Text", height=200)
-    
-    if st.button("Check"):
-        if user_input:
-            # Check for grammar and spelling
-            grammar_corrected_text = check_text(user_input)
-            spelling_corrected_text = check_spelling(user_input)
-            sentiment, meaning_suggestions = analyze_sentence_meaning(user_input)
-            
-            st.subheader("Corrected Text (Grammar Check):")
-            st.write(grammar_corrected_text)
-            
-            st.subheader("Corrected Text (Spelling Check):")
-            st.write(spelling_corrected_text)
-            
-            st.subheader("Sentence Meaning Analysis:")
-            st.write(f"Polarity: {sentiment.polarity} (range: -1 to 1)")
-            st.write(f"Subjectivity: {sentiment.subjectivity} (range: 0 to 1)")
-            st.write("Interpretation: Higher polarity indicates a positive sentiment, while lower polarity indicates a negative sentiment.")
-            
-            st.subheader("Suggested Rephrasings Based on Meaning:")
-            st.write(meaning_suggestions)
-        else:
-            st.warning("Please enter some text to check.")
+    st.title("Lightweight N-Gram Grammar and Spell Checker")
+
+    # Input text
+    text_input = st.text_area("Enter text to check:", height=200)
+
+    if st.button("Check Text"):
+        if text_input:
+            # Build trigram model once (for demonstration)
+            trigram_model = build_language_model()
+
+            # Spell checking
+            tokens = tokenize(text_input)
+            misspelled_words = spell.unknown(tokens)
+            corrected_text = text_input
+            for word in misspelled_words:
+                corrected_text = corrected_text.replace(word, f"<span style='color:red'>{spell.correction(word)}</span>")
+
+            # Grammar checking using trigrams
+            grammar_errors = check_grammar(text_input, trigram_model, n=3)
+
+            # Display results
+            st.subheader("Spell Checked Text")
+            st.markdown(corrected_text, unsafe_allow_html=True)
+
+            st.subheader("Grammar Issues (Based on Trigrams)")
+            if grammar_errors:
+                for error in grammar_errors:
+                    st.markdown(f"<p style='color:orange'>Unlikely word sequence: <strong>{error}</strong></p>", unsafe_allow_html=True)
+            else:
+                st.write("No trigram-based grammar issues detected.")
 
 if __name__ == "__main__":
     main()

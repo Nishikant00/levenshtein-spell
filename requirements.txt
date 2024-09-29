@@ -1,4 +1,3 @@
-streamlit
-nltk
-textblob
-pyspellchecker
+streamlit==1.25.0
+nltk==3.8.1
+pyspellchecker==0.7.2
