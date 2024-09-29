@@ -8,7 +8,7 @@ from spellchecker import SpellChecker
 # Function to clean and tokenize text
 def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
-
+nltk.download('reuters')
 # Function to build n-gram language model from a corpus
 def build_ngram_model(corpus, n=3):  # Using trigrams for better accuracy
     ngram_counts = Counter()
