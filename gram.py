@@ -6,11 +6,13 @@ from nltk.corpus import reuters, brown
 from spellchecker import SpellChecker
 import nltk
 nltk.download('reuters')
-nltk.download('punkt_tab')
+nltk.download('punkt')
 nltk.download('brown')
+
 # Function to clean and tokenize text
 def tokenize(text):
     return re.findall(r'\b\w+\b', text.lower())
+
 # Function to build n-gram language model from a corpus
 def build_ngram_model(corpus, n=3):  # Using trigrams for better accuracy
     ngram_counts = Counter()
@@ -58,20 +60,27 @@ def main():
             tokens = tokenize(text_input)
             misspelled_words = spell.unknown(tokens)
             corrected_text = text_input
+
             for word in misspelled_words:
-                corrected_text = corrected_text.replace(word, f"<span style='color:red'>{spell.correction(word)}</span>")
+                suggestion = spell.correction(word)
+                corrected_text = corrected_text.replace(word, f"<span style='color:red'>{word} (Suggestion: {suggestion})</span>")
 
             # Grammar checking using trigrams
             grammar_errors = check_grammar(text_input, trigram_model, n=3)
 
+            # Highlight grammar errors in blue
+            for error in grammar_errors:
+                corrected_text = corrected_text.replace(error, f"<span style='color:blue'>{error} (Unlikely word sequence)</span>")
+
             # Display results
-            st.subheader("Spell Checked Text")
+            st.subheader("Text with Spell and Grammar Highlights")
             st.markdown(corrected_text, unsafe_allow_html=True)
 
-            st.subheader("Grammar Issues (Based on Trigrams)")
+            # Display the grammar issues explicitly if necessary
+            st.subheader("Detailed Grammar Suggestions (Trigrams)")
             if grammar_errors:
                 for error in grammar_errors:
-                    st.markdown(f"<p style='color:orange'>Unlikely word sequence: <strong>{error}</strong></p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='color:blue'>Unlikely word sequence: <strong>{error}</strong></p>", unsafe_allow_html=True)
             else:
                 st.write("No trigram-based grammar issues detected.")
 
