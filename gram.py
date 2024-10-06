@@ -11,16 +11,20 @@ def get_language_tool(language):
     return language_tool_python.LanguageTool(language)
 
 def check_text(text, grammar_tool):
-    # Check grammar
-    grammar_errors = grammar_tool.check(text)
+    # Check grammar and punctuation
+    errors = grammar_tool.check(text)
+    
+    # Separate grammar and punctuation errors
+    grammar_errors = [e for e in errors if e.category != 'PUNCTUATION']
+    punctuation_errors = [e for e in errors if e.category == 'PUNCTUATION']
     
     # Check spelling
     words = re.findall(r'\b\w+\b', text.lower())
     misspelled = spell.unknown(words)
     
-    return grammar_errors, misspelled
+    return grammar_errors, punctuation_errors, misspelled
 
-def highlight_errors(text, grammar_errors, misspelled):
+def highlight_errors(text, grammar_errors, punctuation_errors, misspelled):
     highlighted_text = text
     offset = 0
     
@@ -35,6 +39,17 @@ def highlight_errors(text, grammar_errors, misspelled):
         )
         offset += len("<span style='background-color: #ADD8E6'></span>")
     
+    # Highlight punctuation errors
+    for error in sorted(punctuation_errors, key=lambda e: e.offset):
+        start = error.offset + offset
+        end = start + error.errorLength
+        highlighted_text = (
+            highlighted_text[:start] +
+            f"<span style='background-color: #FFFF00'>{highlighted_text[start:end]}</span>" +
+            highlighted_text[end:]
+        )
+        offset += len("<span style='background-color: #FFFF00'></span>")
+    
     # Highlight spelling errors
     for word in misspelled:
         pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
@@ -45,10 +60,10 @@ def highlight_errors(text, grammar_errors, misspelled):
     
     return highlighted_text
 
-def get_corrected_text(text, grammar_errors):
+def get_corrected_text(text, grammar_errors, punctuation_errors):
     corrected = text
     offset = 0
-    for error in sorted(grammar_errors, key=lambda e: e.offset):
+    for error in sorted(grammar_errors + punctuation_errors, key=lambda e: e.offset):
         suggestion = error.replacements[0] if error.replacements else error.context
         start = error.offset + offset
         end = start + error.errorLength
@@ -57,9 +72,9 @@ def get_corrected_text(text, grammar_errors):
     return corrected
 
 def main():
-    st.set_page_config(page_title="Enhanced NLP Grammar and Spell Checker", layout="wide")
+    st.set_page_config(page_title="Enhanced NLP Grammar, Spell, and Punctuation Checker", layout="wide")
     
-    st.title("Enhanced NLP Grammar and Spell Checker")
+    st.title("Enhanced NLP Grammar, Spell, and Punctuation Checker")
     
     # Sidebar for language selection
     languages = ["en-US", "en-GB", "fr", "de", "es"]
@@ -74,12 +89,12 @@ def main():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("Check Grammar and Spelling"):
+        if st.button("Check Grammar, Spelling, and Punctuation"):
             if user_input:
-                grammar_errors, misspelled_words = check_text(user_input, grammar_tool)
+                grammar_errors, punctuation_errors, misspelled_words = check_text(user_input, grammar_tool)
                 
                 # Highlight errors in the text
-                highlighted_text = highlight_errors(user_input, grammar_errors, misspelled_words)
+                highlighted_text = highlight_errors(user_input, grammar_errors, punctuation_errors, misspelled_words)
                 st.subheader("Text with Highlighted Errors:")
                 st.markdown(highlighted_text, unsafe_allow_html=True)
                 
@@ -96,6 +111,15 @@ def main():
                 else:
                     st.write("No grammar errors found.")
                 
+                # Display punctuation suggestions
+                st.subheader("Punctuation Suggestions:")
+                if punctuation_errors:
+                    for error in punctuation_errors:
+                        st.write(f"- {error.message}")
+                        st.write(f"  Suggestion: {error.replacements[0] if error.replacements else 'No suggestion'}")
+                else:
+                    st.write("No punctuation errors found.")
+                
                 # Display spelling suggestions
                 st.subheader("Spelling Suggestions:")
                 if misspelled_words:
@@ -105,7 +129,7 @@ def main():
                     st.write("No spelling errors found.")
                 
                 # Store the corrected text in session state
-                st.session_state.corrected_text = get_corrected_text(user_input, grammar_errors)
+                st.session_state.corrected_text = get_corrected_text(user_input, grammar_errors, punctuation_errors)
             else:
                 st.warning("Please enter some text to check.")
     
