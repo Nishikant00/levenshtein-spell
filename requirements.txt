@@ -1,3 +1,4 @@
 streamlit
 language-tool-python
 pyspellchecker
+setuptools
