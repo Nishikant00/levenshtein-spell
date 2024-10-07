@@ -20,7 +20,8 @@ def correct_text(text, tokenizer, model):
         max_length=512, 
         num_return_sequences=1, 
         num_beams=5,
-        no_repeat_ngram_size=2  # Prevent repetition of 2-grams
+        no_repeat_ngram_size=2,  # Prevent repetition of 2-grams
+        temperature=0.7  # Add some randomness to prevent exact repetition
     )
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
@@ -34,9 +35,9 @@ def highlight_differences(original, corrected):
         if word.startswith('  '):
             highlighted.append(word[2:])
         elif word.startswith('- '):
-            highlighted.append(f'<span style="background-color: #ffcccb;">{word[2:]}</span>')
+            highlighted.append(f'<span style="text-decoration: underline wavy #FF0000;">{word[2:]}</span>')
         elif word.startswith('+ '):
-            highlighted.append(f'<span style="background-color: #90EE90;">{word[2:]}</span>')
+            highlighted.append(f'<span style="text-decoration: underline wavy #00FF00;">{word[2:]}</span>')
     
     return ' '.join(highlighted)
 
@@ -71,19 +72,19 @@ st.markdown("""
     .legend-item {
         margin-right: 20px;
     }
-    .red-highlight {
-        background-color: #ffcccb;
+    .red-underline {
+        text-decoration: underline wavy #FF0000;
     }
-    .green-highlight {
-        background-color: #90EE90;
+    .green-underline {
+        text-decoration: underline wavy #00FF00;
     }
     </style>
     <div class="legend">
         <div class="legend-item">
-            <span class="red-highlight">Red highlight</span>: Removed or corrected
+            <span class="red-underline">Red underline</span>: Removed or corrected
         </div>
         <div class="legend-item">
-            <span class="green-highlight">Green highlight</span>: Added or corrected
+            <span class="green-underline">Green underline</span>: Added or corrected
         </div>
     </div>
     """, unsafe_allow_html=True)
