@@ -18,16 +18,20 @@ def load_models():
             "tokenizer": AutoTokenizer.from_pretrained("Unbabel/gec-t5_small"),
             "model": AutoModelForSeq2SeqLM.from_pretrained("Unbabel/gec-t5_small")
         },
-        "grammarly/coedit-large": pipeline("text2text-generation", model="grammarly/coedit-large", device=0 if torch.cuda.is_available() else -1),
-        "pszemraj/flan-t5-large-grammar-synthesis": pipeline("text2text-generation", model="pszemraj/flan-t5-large-grammar-synthesis", device=0 if torch.cuda.is_available() else -1)
+        "grammarly/coedit-large": {
+            "pipeline": pipeline("text2text-generation", model="grammarly/coedit-large", device=0 if torch.cuda.is_available() else -1)
+        },
+        "pszemraj/flan-t5-large-grammar-synthesis": {
+            "pipeline": pipeline("text2text-generation", model="pszemraj/flan-t5-large-grammar-synthesis", device=0 if torch.cuda.is_available() else -1)
+        }
     }
     return models
 
 def correct_grammar(text, models):
     corrections = {}
     for name, model in models.items():
-        if isinstance(model, pipeline):
-            corrected = model(text, max_length=512)[0]['generated_text']
+        if "pipeline" in model:
+            corrected = model["pipeline"](text, max_length=512)[0]['generated_text']
         else:
             inputs = model["tokenizer"](text, return_tensors="pt", padding=True, truncation=True, max_length=512)
             outputs = model["model"].generate(**inputs, max_length=512)
