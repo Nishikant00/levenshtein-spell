@@ -2,6 +2,9 @@ import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import re
+import nltk
+nltk.download('punkt')
+from nltk.tokenize import sent_tokenize
 
 @st.cache_resource
 def load_model():
@@ -9,28 +12,26 @@ def load_model():
     model = AutoModelForSeq2SeqLM.from_pretrained("prithivida/grammar_error_correcter_v1")
     return tokenizer, model
 
-def preprocess_text(text):
-    corrections = {
-        r'\bu\b': 'you',
-        r'\br\b': 'are',
-        r'\bur\b': 'your',
-        r'\bthx\b': 'thanks',
-        r'\bim\b': "I'm",
-    }
-
-    for pattern, replacement in corrections.items():
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+def correct_text(text, tokenizer, model):
+    preprocessed_text = preprocess_text(text)
     
-    question_patterns = {
-        r'\byou mad are\b': 'are you mad',
-    }
-
-    for pattern, replacement in question_patterns.items():
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-
-    text = '. '.join(sentence.capitalize() for sentence in text.split('. '))
+    if not preprocessed_text.strip().endswith(('.', '!', '?')):
+        preprocessed_text += '.'
     
-    return text
+    input_ids = tokenizer.encode(preprocessed_text, return_tensors="pt", max_length=512, truncation=True)
+    outputs = model.generate(
+        input_ids, 
+        max_length=256, 
+        num_return_sequences=1, 
+        num_beams=3,
+        temperature=0.5
+    )
+    
+    corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    corrected_text = ' '.join(sent_tokenize(corrected_text))
+    
+    return corrected_text
 
 
 def correct_text(text, tokenizer, model):
