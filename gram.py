@@ -17,13 +17,21 @@ def preprocess_text(text):
         r'\bthx\b': 'thanks',
         r'\bim\b': "I'm",
     }
-    
+
     for pattern, replacement in corrections.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
+    question_patterns = {
+        r'\byou mad\b': 'are you mad',
+    }
+
+    for pattern, replacement in question_patterns.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
     text = '. '.join(sentence.capitalize() for sentence in text.split('. '))
     
     return text
+
 
 def correct_text(text, tokenizer, model):
     preprocessed_text = preprocess_text(text)
