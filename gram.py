@@ -21,7 +21,9 @@ def preprocess_text(text):
     for pattern, replacement in corrections.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
-    
+    question_patterns = {
+        r'\byou mad are\b': 'are you mad',
+    }
 
     for pattern, replacement in question_patterns.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
