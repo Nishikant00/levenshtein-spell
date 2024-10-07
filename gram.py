@@ -2,14 +2,12 @@ import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import re
-import spacy
 
 @st.cache_resource
 def load_model():
     tokenizer = AutoTokenizer.from_pretrained("vennify/t5-base-grammar-correction")
     model = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
-    nlp = spacy.load("en_core_web_sm")
-    return tokenizer, model, nlp
+    return tokenizer, model
 
 def preprocess_text(text):
     # Convert common abbreviations
@@ -43,19 +41,19 @@ def correct_text(text, tokenizer, model):
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
-def highlight_differences(original, corrected, nlp):
-    original_doc = nlp(original)
-    corrected_doc = nlp(corrected)
-    
-    original_words = [token.text for token in original_doc]
-    corrected_words = [token.text for token in corrected_doc]
+def is_spelling_mistake(word):
+    # This is a simple heuristic. In a real-world scenario, you'd use a proper spell checker.
+    return len(word) > 2 and not word.isalpha()
+
+def highlight_differences(original, corrected):
+    original_words = original.split()
+    corrected_words = corrected.split()
     
     highlighted = []
     
     for orig_word, corr_word in zip(original_words, corrected_words):
         if orig_word.lower() != corr_word.lower():
-            # Check if it's a spelling mistake
-            if orig_word.lower() not in nlp.vocab:
+            if is_spelling_mistake(orig_word):
                 highlighted.append(f'<span style="text-decoration: underline wavy red;">{orig_word}</span> ({corr_word})')
             else:
                 highlighted.append(f'<span style="text-decoration: underline wavy blue;">{orig_word}</span> ({corr_word})')
@@ -72,7 +70,7 @@ def highlight_differences(original, corrected, nlp):
 
 st.title("Grammar and Spelling Checker")
 
-tokenizer, model, nlp = load_model()
+tokenizer, model = load_model()
 
 user_input = st.text_area("Enter your text here:", height=200)
 
@@ -80,7 +78,7 @@ if st.button("Check Grammar and Spelling"):
     if user_input:
         with st.spinner("Checking your text..."):
             corrected_text = correct_text(user_input, tokenizer, model)
-            highlighted_text = highlight_differences(user_input, corrected_text, nlp)
+            highlighted_text = highlight_differences(user_input, corrected_text)
         
         st.subheader("Text with Highlights:")
         st.markdown(highlighted_text, unsafe_allow_html=True)
