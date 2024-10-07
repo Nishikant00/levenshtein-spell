@@ -1,147 +1,79 @@
 import streamlit as st
-import language_tool_python
-from spellchecker import SpellChecker
-import re
-
-# Initialize the spell checker
-spell = SpellChecker()
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import difflib
 
 @st.cache_resource
-def get_language_tool(language):
-    return language_tool_python.LanguageTool(language)
+def load_model():
+    tokenizer = AutoTokenizer.from_pretrained("vennify/t5-base-grammar-correction")
+    model = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
+    return tokenizer, model
 
-def check_text(text, grammar_tool):
-    # Check grammar and punctuation
-    errors = grammar_tool.check(text)
-    
-    # Separate grammar and punctuation errors
-    grammar_errors = [e for e in errors if e.category != 'PUNCTUATION']
-    punctuation_errors = [e for e in errors if e.category == 'PUNCTUATION']
-    
-    # Check spelling
-    words = re.findall(r'\b\w+\b', text.lower())
-    misspelled = spell.unknown(words)
-    
-    return grammar_errors, punctuation_errors, misspelled
+def correct_text(text, tokenizer, model):
+    input_ids = tokenizer.encode(text, return_tensors="pt", max_length=512, truncation=True)
+    outputs = model.generate(input_ids, max_length=512, num_return_sequences=1, num_beams=5)
+    corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return corrected_text
 
-def highlight_errors(text, grammar_errors, punctuation_errors, misspelled):
-    highlighted_text = text
-    offset = 0
+def highlight_differences(original, corrected):
+    d = difflib.Differ()
+    diff = list(d.compare(original.split(), corrected.split()))
     
-    # Highlight grammar errors
-    for error in sorted(grammar_errors, key=lambda e: e.offset):
-        start = error.offset + offset
-        end = start + error.errorLength
-        highlighted_text = (
-            highlighted_text[:start] +
-            f"<span style='background-color: #ADD8E6'>{highlighted_text[start:end]}</span>" +
-            highlighted_text[end:]
-        )
-        offset += len("<span style='background-color: #ADD8E6'></span>")
+    highlighted = []
+    for word in diff:
+        if word.startswith('  '):
+            highlighted.append(word[2:])
+        elif word.startswith('- '):
+            highlighted.append(f'<span style="text-decoration: underline wavy blue;">{word[2:]}</span>')
+        elif word.startswith('+ '):
+            highlighted.append(f'<span style="text-decoration: underline wavy red;">{word[2:]}</span>')
     
-    # Highlight punctuation errors
-    for error in sorted(punctuation_errors, key=lambda e: e.offset):
-        start = error.offset + offset
-        end = start + error.errorLength
-        highlighted_text = (
-            highlighted_text[:start] +
-            f"<span style='background-color: #FFFF00'>{highlighted_text[start:end]}</span>" +
-            highlighted_text[end:]
-        )
-        offset += len("<span style='background-color: #FFFF00'></span>")
-    
-    # Highlight spelling errors
-    for word in misspelled:
-        pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
-        highlighted_text = pattern.sub(
-            lambda m: f"<span style='background-color: #FFB6C1'>{m.group()}</span>",
-            highlighted_text
-        )
-    
-    return highlighted_text
+    return ' '.join(highlighted)
 
-def get_corrected_text(text, grammar_errors, punctuation_errors):
-    corrected = text
-    offset = 0
-    for error in sorted(grammar_errors + punctuation_errors, key=lambda e: e.offset):
-        suggestion = error.replacements[0] if error.replacements else error.context
-        start = error.offset + offset
-        end = start + error.errorLength
-        corrected = corrected[:start] + suggestion + corrected[end:]
-        offset += len(suggestion) - error.errorLength
-    return corrected
+st.title("Grammar and Spelling Checker")
 
-def main():
-    st.set_page_config(page_title="Enhanced NLP Grammar, Spell, and Punctuation Checker", layout="wide")
-    
-    st.title("Enhanced NLP Grammar, Spell, and Punctuation Checker")
-    
-    # Sidebar for language selection
-    languages = ["en-US", "en-GB", "fr", "de", "es"]
-    selected_language = st.sidebar.selectbox("Select Language", languages)
-    
-    # Initialize the grammar checker with the selected language
-    grammar_tool = get_language_tool(selected_language)
-    
-    # Text input
-    user_input = st.text_area("Enter your text here:", height=200)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("Check Grammar, Spelling, and Punctuation"):
-            if user_input:
-                grammar_errors, punctuation_errors, misspelled_words = check_text(user_input, grammar_tool)
-                
-                # Highlight errors in the text
-                highlighted_text = highlight_errors(user_input, grammar_errors, punctuation_errors, misspelled_words)
-                st.subheader("Text with Highlighted Errors:")
-                st.markdown(highlighted_text, unsafe_allow_html=True)
-                
-                # Display word count
-                word_count = len(re.findall(r'\b\w+\b', user_input))
-                st.info(f"Word count: {word_count}")
-                
-                # Display grammar suggestions
-                st.subheader("Grammar Suggestions:")
-                if grammar_errors:
-                    for error in grammar_errors:
-                        st.write(f"- {error.message}")
-                        st.write(f"  Suggestion: {error.replacements[0] if error.replacements else 'No suggestion'}")
-                else:
-                    st.write("No grammar errors found.")
-                
-                # Display punctuation suggestions
-                st.subheader("Punctuation Suggestions:")
-                if punctuation_errors:
-                    for error in punctuation_errors:
-                        st.write(f"- {error.message}")
-                        st.write(f"  Suggestion: {error.replacements[0] if error.replacements else 'No suggestion'}")
-                else:
-                    st.write("No punctuation errors found.")
-                
-                # Display spelling suggestions
-                st.subheader("Spelling Suggestions:")
-                if misspelled_words:
-                    for word in misspelled_words:
-                        st.write(f"- {word}: {', '.join(spell.candidates(word))}")
-                else:
-                    st.write("No spelling errors found.")
-                
-                # Store the corrected text in session state
-                st.session_state.corrected_text = get_corrected_text(user_input, grammar_errors, punctuation_errors)
-            else:
-                st.warning("Please enter some text to check.")
-    
-    with col2:
-        if 'corrected_text' in st.session_state:
-            st.subheader("Corrected Text:")
-            st.text_area("", value=st.session_state.corrected_text, height=200)
-            
-            # Add a button to copy the corrected text
-            if st.button("Copy Corrected Text"):
-                st.write("Corrected text copied to clipboard!")
-                st.code(st.session_state.corrected_text)
+tokenizer, model = load_model()
 
-if __name__ == "__main__":
-    main()
+user_input = st.text_area("Enter your text here:", height=200)
+
+if st.button("Check Grammar and Spelling"):
+    if user_input:
+        with st.spinner("Checking your text..."):
+            corrected_text = correct_text(user_input, tokenizer, model)
+            highlighted_text = highlight_differences(user_input, corrected_text)
+        
+        st.subheader("Original Text with Highlights:")
+        st.markdown(highlighted_text, unsafe_allow_html=True)
+        
+        st.subheader("Corrected Text:")
+        st.text_area("You can copy the corrected text from here:", value=corrected_text, height=200)
+    else:
+        st.warning("Please enter some text to check.")
+
+st.markdown("---")
+st.markdown("""
+    <style>
+    .legend {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .legend-item {
+        margin-right: 20px;
+    }
+    .blue-underline {
+        text-decoration: underline wavy blue;
+    }
+    .red-underline {
+        text-decoration: underline wavy red;
+    }
+    </style>
+    <div class="legend">
+        <div class="legend-item">
+            <span class="blue-underline">Blue underline</span>: Grammar/Punctuation mistake
+        </div>
+        <div class="legend-item">
+            <span class="red-underline">Red underline</span>: Spelling mistake
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
