@@ -41,13 +41,12 @@ def correct_text(text, tokenizer, model):
     
     input_ids = tokenizer.encode(preprocessed_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(
-        input_ids, 
-        max_length=512, 
-        num_return_sequences=1, 
-        num_beams=5,
-        no_repeat_ngram_size=2,
-        temperature=0.7
-    )
+    input_ids, 
+    max_length=256,               
+    num_return_sequences=1, 
+    num_beams=3,                
+    temperature=0.5               
+)
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
