@@ -5,12 +5,11 @@ import re
 
 @st.cache_resource
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained("grammarly/coedit-large")
-    model = AutoModelForSeq2SeqLM.from_pretrained("grammarly/coedit-large")
+    tokenizer = AutoTokenizer.from_pretrained("prithivida/grammar_error_correcter_v1")
+    model = AutoModelForSeq2SeqLM.from_pretrained("prithivida/grammar_error_correcter_v1")
     return tokenizer, model
 
 def preprocess_text(text):
-    # Convert common abbreviations and correct common mistakes
     corrections = {
         r'\bu\b': 'you',
         r'\br\b': 'are',
@@ -22,16 +21,13 @@ def preprocess_text(text):
     for pattern, replacement in corrections.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
-    # Ensure proper capitalization
     text = '. '.join(sentence.capitalize() for sentence in text.split('. '))
     
     return text
 
 def correct_text(text, tokenizer, model):
-    # Preprocess the text
     preprocessed_text = preprocess_text(text)
     
-    # Ensure the text ends with proper punctuation
     if not preprocessed_text.strip().endswith(('.', '!', '?')):
         preprocessed_text += '.'
     
@@ -65,7 +61,6 @@ def highlight_differences(original, corrected):
         else:
             highlighted.append(orig_word)
     
-    # Add any remaining words
     if len(corrected_words) > len(original_words):
         highlighted.extend([f'<span style="text-decoration: underline wavy blue;">({word})</span>' for word in corrected_words[len(original_words):]])
     elif len(original_words) > len(corrected_words):
@@ -73,7 +68,7 @@ def highlight_differences(original, corrected):
     
     return ' '.join(highlighted)
 
-st.title("Advanced Grammar and Spelling Checker")
+st.title("Advanced Grammar and Spelling Checker (Gramphormer)")
 
 tokenizer, model = load_model()
 
