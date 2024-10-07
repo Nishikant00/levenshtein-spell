@@ -10,8 +10,18 @@ def load_model():
     return tokenizer, model
 
 def correct_text(text, tokenizer, model):
+    # Ensure the text ends with proper punctuation
+    if not text.strip().endswith(('.', '!', '?')):
+        text += '.'
+    
     input_ids = tokenizer.encode(text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(input_ids, max_length=512, num_return_sequences=1, num_beams=5)
+    outputs = model.generate(
+        input_ids, 
+        max_length=512, 
+        num_return_sequences=1, 
+        num_beams=5,
+        no_repeat_ngram_size=2  # Prevent repetition of 2-grams
+    )
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
@@ -24,9 +34,9 @@ def highlight_differences(original, corrected):
         if word.startswith('  '):
             highlighted.append(word[2:])
         elif word.startswith('- '):
-            highlighted.append(f'<span style="text-decoration: underline wavy blue;">{word[2:]}</span>')
+            highlighted.append(f'<span style="background-color: #ffcccb;">{word[2:]}</span>')
         elif word.startswith('+ '):
-            highlighted.append(f'<span style="text-decoration: underline wavy red;">{word[2:]}</span>')
+            highlighted.append(f'<span style="background-color: #90EE90;">{word[2:]}</span>')
     
     return ' '.join(highlighted)
 
@@ -61,19 +71,19 @@ st.markdown("""
     .legend-item {
         margin-right: 20px;
     }
-    .blue-underline {
-        text-decoration: underline wavy blue;
+    .red-highlight {
+        background-color: #ffcccb;
     }
-    .red-underline {
-        text-decoration: underline wavy red;
+    .green-highlight {
+        background-color: #90EE90;
     }
     </style>
     <div class="legend">
         <div class="legend-item">
-            <span class="blue-underline">Blue underline</span>: Grammar/Punctuation mistake
+            <span class="red-highlight">Red highlight</span>: Removed or corrected
         </div>
         <div class="legend-item">
-            <span class="red-underline">Red underline</span>: Spelling mistake
+            <span class="green-highlight">Green highlight</span>: Added or corrected
         </div>
     </div>
     """, unsafe_allow_html=True)
