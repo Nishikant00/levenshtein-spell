@@ -5,16 +5,22 @@ import re
 
 @st.cache_resource
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained("vennify/t5-base-grammar-correction")
-    model = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
+    tokenizer = AutoTokenizer.from_pretrained("grammarly/coedit-large")
+    model = AutoModelForSeq2SeqLM.from_pretrained("grammarly/coedit-large")
     return tokenizer, model
 
 def preprocess_text(text):
-    # Convert common abbreviations
-    text = re.sub(r'\bu\b', 'you', text, flags=re.IGNORECASE)
-    text = re.sub(r'\br\b', 'are', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bur\b', 'your', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bthx\b', 'thanks', text, flags=re.IGNORECASE)
+    # Convert common abbreviations and correct common mistakes
+    corrections = {
+        r'\bu\b': 'you',
+        r'\br\b': 'are',
+        r'\bur\b': 'your',
+        r'\bthx\b': 'thanks',
+        r'\bim\b': "I'm",
+    }
+    
+    for pattern, replacement in corrections.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
     # Ensure proper capitalization
     text = '. '.join(sentence.capitalize() for sentence in text.split('. '))
@@ -41,9 +47,8 @@ def correct_text(text, tokenizer, model):
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
-def is_spelling_mistake(word):
-    # This is a simple heuristic. In a real-world scenario, you'd use a proper spell checker.
-    return len(word) > 2 and not word.isalpha()
+def is_spelling_mistake(word, corrected_word):
+    return word.lower() != corrected_word.lower() and len(word) > 1
 
 def highlight_differences(original, corrected):
     original_words = original.split()
@@ -53,7 +58,7 @@ def highlight_differences(original, corrected):
     
     for orig_word, corr_word in zip(original_words, corrected_words):
         if orig_word.lower() != corr_word.lower():
-            if is_spelling_mistake(orig_word):
+            if is_spelling_mistake(orig_word, corr_word):
                 highlighted.append(f'<span style="text-decoration: underline wavy red;">{orig_word}</span> ({corr_word})')
             else:
                 highlighted.append(f'<span style="text-decoration: underline wavy blue;">{orig_word}</span> ({corr_word})')
@@ -68,7 +73,7 @@ def highlight_differences(original, corrected):
     
     return ' '.join(highlighted)
 
-st.title("Grammar and Spelling Checker")
+st.title("Advanced Grammar and Spelling Checker")
 
 tokenizer, model = load_model()
 
