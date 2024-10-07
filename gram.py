@@ -10,7 +10,13 @@ def load_model():
     return tokenizer, model
 
 def preprocess_text(text):
-   
+    corrections = {
+        r'\bu\b': 'you',
+        r'\br\b': 'are',
+        r'\bur\b': 'your',
+        r'\bthx\b': 'thanks',
+        r'\bim\b': "I'm",
+    }
 
     for pattern, replacement in corrections.items():
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
