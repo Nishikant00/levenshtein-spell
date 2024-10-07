@@ -83,7 +83,7 @@ def highlight_differences(original, corrected):
     return ' '.join(highlighted)
 
 def main():
-    st.title("Advanced Grammar and Spelling Checker (Gramphormer)")
+    st.title("Advanced Grammar and Spelling Checker")
 
     tokenizer, model = load_model()
 
