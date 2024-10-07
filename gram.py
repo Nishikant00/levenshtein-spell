@@ -1,7 +1,7 @@
 import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import difflib
+import re
 
 @st.cache_resource
 def load_model():
@@ -9,35 +9,55 @@ def load_model():
     model = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
     return tokenizer, model
 
-def correct_text(text, tokenizer, model):
-    # Ensure the text ends with proper punctuation
-    if not text.strip().endswith(('.', '!', '?')):
-        text += '.'
+def preprocess_text(text):
+    # Convert common abbreviations
+    text = re.sub(r'\bu\b', 'you', text, flags=re.IGNORECASE)
+    text = re.sub(r'\br\b', 'are', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bur\b', 'your', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bthx\b', 'thanks', text, flags=re.IGNORECASE)
     
-    input_ids = tokenizer.encode(text, return_tensors="pt", max_length=512, truncation=True)
+    # Ensure proper capitalization
+    text = '. '.join(sentence.capitalize() for sentence in text.split('. '))
+    
+    return text
+
+def correct_text(text, tokenizer, model):
+    # Preprocess the text
+    preprocessed_text = preprocess_text(text)
+    
+    # Ensure the text ends with proper punctuation
+    if not preprocessed_text.strip().endswith(('.', '!', '?')):
+        preprocessed_text += '.'
+    
+    input_ids = tokenizer.encode(preprocessed_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(
         input_ids, 
         max_length=512, 
         num_return_sequences=1, 
         num_beams=5,
-        no_repeat_ngram_size=2,  # Prevent repetition of 2-grams
-        temperature=0.7  # Add some randomness to prevent exact repetition
+        no_repeat_ngram_size=2,
+        temperature=0.7
     )
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
 def highlight_differences(original, corrected):
-    d = difflib.Differ()
-    diff = list(d.compare(original.split(), corrected.split()))
-    
+    words1 = original.split()
+    words2 = corrected.split()
     highlighted = []
-    for word in diff:
-        if word.startswith('  '):
-            highlighted.append(word[2:])
-        elif word.startswith('- '):
-            highlighted.append(f'<span style="text-decoration: underline wavy #FF0000;">{word[2:]}</span>')
-        elif word.startswith('+ '):
-            highlighted.append(f'<span style="text-decoration: underline wavy #00FF00;">{word[2:]}</span>')
+    
+    for word1, word2 in zip(words1, words2):
+        if word1.lower() != word2.lower():
+            highlighted.append(f'<span style="text-decoration: underline wavy red;">{word1}</span>')
+            highlighted.append(f'<span style="text-decoration: underline wavy green;">{word2}</span>')
+        else:
+            highlighted.append(word2)
+    
+    # Add any remaining words
+    if len(words2) > len(words1):
+        highlighted.extend([f'<span style="text-decoration: underline wavy green;">{word}</span>' for word in words2[len(words1):]])
+    elif len(words1) > len(words2):
+        highlighted.extend([f'<span style="text-decoration: underline wavy red;">{word}</span>' for word in words1[len(words2):]])
     
     return ' '.join(highlighted)
 
@@ -73,18 +93,18 @@ st.markdown("""
         margin-right: 20px;
     }
     .red-underline {
-        text-decoration: underline wavy #FF0000;
+        text-decoration: underline wavy red;
     }
     .green-underline {
-        text-decoration: underline wavy #00FF00;
+        text-decoration: underline wavy green;
     }
     </style>
     <div class="legend">
         <div class="legend-item">
-            <span class="red-underline">Red underline</span>: Removed or corrected
+            <span class="red-underline">Red underline</span>: Original text
         </div>
         <div class="legend-item">
-            <span class="green-underline">Green underline</span>: Added or corrected
+            <span class="green-underline">Green underline</span>: Corrected text
         </div>
     </div>
     """, unsafe_allow_html=True)
