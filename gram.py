@@ -2,12 +2,14 @@ import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import re
+import spacy
 
 @st.cache_resource
 def load_model():
     tokenizer = AutoTokenizer.from_pretrained("vennify/t5-base-grammar-correction")
     model = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
-    return tokenizer, model
+    nlp = spacy.load("en_core_web_sm")
+    return tokenizer, model, nlp
 
 def preprocess_text(text):
     # Convert common abbreviations
@@ -41,29 +43,36 @@ def correct_text(text, tokenizer, model):
     corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected_text
 
-def highlight_differences(original, corrected):
-    words1 = original.split()
-    words2 = corrected.split()
+def highlight_differences(original, corrected, nlp):
+    original_doc = nlp(original)
+    corrected_doc = nlp(corrected)
+    
+    original_words = [token.text for token in original_doc]
+    corrected_words = [token.text for token in corrected_doc]
+    
     highlighted = []
     
-    for word1, word2 in zip(words1, words2):
-        if word1.lower() != word2.lower():
-            highlighted.append(f'<span style="text-decoration: underline wavy red;">{word1}</span>')
-            highlighted.append(f'<span style="text-decoration: underline wavy green;">{word2}</span>')
+    for orig_word, corr_word in zip(original_words, corrected_words):
+        if orig_word.lower() != corr_word.lower():
+            # Check if it's a spelling mistake
+            if orig_word.lower() not in nlp.vocab:
+                highlighted.append(f'<span style="text-decoration: underline wavy red;">{orig_word}</span> ({corr_word})')
+            else:
+                highlighted.append(f'<span style="text-decoration: underline wavy blue;">{orig_word}</span> ({corr_word})')
         else:
-            highlighted.append(word2)
+            highlighted.append(orig_word)
     
     # Add any remaining words
-    if len(words2) > len(words1):
-        highlighted.extend([f'<span style="text-decoration: underline wavy green;">{word}</span>' for word in words2[len(words1):]])
-    elif len(words1) > len(words2):
-        highlighted.extend([f'<span style="text-decoration: underline wavy red;">{word}</span>' for word in words1[len(words2):]])
+    if len(corrected_words) > len(original_words):
+        highlighted.extend([f'<span style="text-decoration: underline wavy blue;">({word})</span>' for word in corrected_words[len(original_words):]])
+    elif len(original_words) > len(corrected_words):
+        highlighted.extend([f'<span style="text-decoration: underline wavy blue;">{word}</span>' for word in original_words[len(corrected_words):]])
     
     return ' '.join(highlighted)
 
 st.title("Grammar and Spelling Checker")
 
-tokenizer, model = load_model()
+tokenizer, model, nlp = load_model()
 
 user_input = st.text_area("Enter your text here:", height=200)
 
@@ -71,9 +80,9 @@ if st.button("Check Grammar and Spelling"):
     if user_input:
         with st.spinner("Checking your text..."):
             corrected_text = correct_text(user_input, tokenizer, model)
-            highlighted_text = highlight_differences(user_input, corrected_text)
+            highlighted_text = highlight_differences(user_input, corrected_text, nlp)
         
-        st.subheader("Original Text with Highlights:")
+        st.subheader("Text with Highlights:")
         st.markdown(highlighted_text, unsafe_allow_html=True)
         
         st.subheader("Corrected Text:")
@@ -95,16 +104,16 @@ st.markdown("""
     .red-underline {
         text-decoration: underline wavy red;
     }
-    .green-underline {
-        text-decoration: underline wavy green;
+    .blue-underline {
+        text-decoration: underline wavy blue;
     }
     </style>
     <div class="legend">
         <div class="legend-item">
-            <span class="red-underline">Red underline</span>: Original text
+            <span class="red-underline">Red underline</span>: Spelling mistake
         </div>
         <div class="legend-item">
-            <span class="green-underline">Green underline</span>: Corrected text
+            <span class="blue-underline">Blue underline</span>: Grammar mistake
         </div>
     </div>
     """, unsafe_allow_html=True)
