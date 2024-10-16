@@ -5,7 +5,8 @@ from nltk.tokenize import sent_tokenize
 import language_tool_python
 
 # Download necessary NLTK data
-nltk.download('punkt')
+nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 
 # Set page configuration
 st.set_page_config(page_title="Grammar and Spell Checker", page_icon="📝", layout="wide")
@@ -20,22 +21,20 @@ st.markdown("""
     .st-emotion-cache-1v0mbdj {
         width: 100%;
     }
-    .result-box {
+    .corrected-text {
         border: 1px solid #e0e0e0;
         border-radius: 5px;
         padding: 10px;
-        margin-bottom: 10px;
+        margin-top: 20px;
+        background-color: #f8f8f8;
     }
-    .error {
-        background-color: #ffecb3;
-    }
-    .ok {
+    .correction {
         background-color: #e8f5e9;
+        text-decoration: underline;
+        cursor: pointer;
     }
-    .language-tool-error {
-        border-left: 3px solid #f44336;
-        padding-left: 10px;
-        margin-bottom: 10px;
+    .transformer-error {
+        background-color: #fff9c4;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -59,9 +58,10 @@ def check_grammar_transformers(text, classifier):
             results.append((sentence, 'OK', prediction['score']))
     return results
 
-def check_grammar_language_tool(text, tool):
+def check_and_correct_text(text, tool):
     matches = tool.check(text)
-    return matches
+    corrected_text = language_tool_python.utils.correct(text, matches)
+    return corrected_text, matches
 
 st.title('📝 Grammar and Spell Checker')
 st.markdown("Improve your writing with our advanced grammar and spell checking tool!")
@@ -73,43 +73,42 @@ language_tool = load_language_tool()
 # Text input
 text = st.text_area("Enter your text here:", height=200, max_chars=5000)
 
-if st.button('Check Grammar and Spelling', key='check_button'):
+if st.button('Check and Correct Grammar and Spelling', key='check_button'):
     if text:
-        st.subheader('Results:')
-        
         # Transformer-based check
-        st.write("### Transformer-based Grammar Check:")
-        results = check_grammar_transformers(text, classifier)
-        for sentence, status, confidence in results:
-            if status == 'Potential error':
-                st.markdown(f"""
-                <div class="result-box error">
-                    <p>{sentence}</p>
-                    <p><strong>Status:</strong> {status} - <strong>Confidence:</strong> {confidence:.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="result-box ok">
-                    <p>{sentence}</p>
-                    <p><strong>Status:</strong> {status} - <strong>Confidence:</strong> {confidence:.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
+        transformer_results = check_grammar_transformers(text, classifier)
         
-        # LanguageTool check
-        st.write("### Detailed Grammar and Spelling Check:")
-        matches = check_grammar_language_tool(text, language_tool)
-        if matches:
-            for match in matches:
-                st.markdown(f"""
-                <div class="language-tool-error">
-                    <p><strong style="color: #f44336;">{match.ruleId}:</strong> {match.message}</p>
-                    <p><strong>Context:</strong> ...{match.context}...</p>
-                    <p><strong>Suggested replacement:</strong> {match.replacements[0] if match.replacements else 'No suggestion'}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.success("No issues found by LanguageTool.")
+        # LanguageTool check and correction
+        corrected_text, matches = check_and_correct_text(text, language_tool)
+        
+        st.subheader('Corrected Text:')
+        
+        # Display corrected text with highlights
+        highlighted_text = corrected_text
+        for match in reversed(matches):
+            start, end = match.offset, match.offset + match.errorLength
+            replacement = match.replacements[0] if match.replacements else match.context
+            highlighted_text = (
+                highlighted_text[:start] +
+                f'<span class="correction" title="{match.message}">{replacement}</span>' +
+                highlighted_text[end:]
+            )
+        
+        # Add transformer-based highlights
+        sentences = sent_tokenize(highlighted_text)
+        transformer_highlighted_text = ""
+        for sentence, (_, status, _) in zip(sentences, transformer_results):
+            if status == 'Potential error':
+                transformer_highlighted_text += f'<span class="transformer-error">{sentence}</span> '
+            else:
+                transformer_highlighted_text += sentence + ' '
+        
+        st.markdown(f'<div class="corrected-text">{transformer_highlighted_text}</div>', unsafe_allow_html=True)
+        
+        # Display correction counts
+        st.info(f"Number of LanguageTool corrections: {len(matches)}")
+        st.info(f"Number of potential errors detected by transformer: {sum(1 for _, status, _ in transformer_results if status == 'Potential error')}")
+        
     else:
         st.warning("Please enter some text to check.")
 
