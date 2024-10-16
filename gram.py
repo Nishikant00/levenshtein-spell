@@ -37,7 +37,7 @@ def correct_grammar(input_text, tokenizer, model):
     corrected = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return corrected
 
-st.title('📝 Grammar Checker using Gramformer')
+st.title('📝 Grammar Checker & spell checker')
 st.markdown("Improve your writing with our transformer-based grammar correction tool!")
 
 # Load model
@@ -60,7 +60,6 @@ if st.button('Correct Grammar'):
 # Footer
 st.markdown("""
 <div style="text-align: center; color: #888;">
-    <p>Powered by Gramformer</p>
-    <p>© 2023 Grammar Checker</p>
+    <p>© 2077 Grammar Checker</p>
 </div>
 """, unsafe_allow_html=True)
