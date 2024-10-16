@@ -6,7 +6,7 @@ import language_tool_python
 
 # Download necessary NLTK data
 nltk.download('punkt')
-
+nltk.download('punkt_tab')
 @st.cache_resource
 def load_model():
     return pipeline('text-classification', model='textattack/roberta-base-CoLA')
