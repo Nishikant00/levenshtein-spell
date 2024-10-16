@@ -1,63 +1,68 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import torch
+from transformers import pipeline
+import nltk
+from nltk.tokenize import sent_tokenize
+import language_tool_python
+
+# Download necessary NLTK data
+nltk.download('punkt')
 
 @st.cache_resource
 def load_model():
-    model_name = "google/flan-t5-large"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    return tokenizer, model
+    return pipeline('text-classification', model='textattack/roberta-base-CoLA')
 
-def correct_grammar(text, tokenizer, model):
-    prompt = f"Correct the grammar and spelling in the following text: {text}"
-    inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
-    
-    with torch.no_grad():
-        outputs = model.generate(**inputs, max_length=512, num_return_sequences=1, temperature=0.7)
-    
-    corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return corrected_text
+@st.cache_resource
+def load_language_tool():
+    return language_tool_python.LanguageTool('en-US')
 
-def highlight_differences(original, corrected):
-    original_words = original.split()
-    corrected_words = corrected.split()
-    highlighted = []
-
-    for orig, corr in zip(original_words, corrected_words):
-        if orig.lower() != corr.lower():
-            highlighted.append(f'<span style="background-color: #ffcccb;">{orig}</span> → <span style="background-color: #90EE90;">{corr}</span>')
+def check_grammar_transformers(text, classifier):
+    sentences = sent_tokenize(text)
+    results = []
+    for sentence in sentences:
+        prediction = classifier(sentence)[0]
+        if prediction['label'] == 'LABEL_0':
+            results.append((sentence, 'Potential error', prediction['score']))
         else:
-            highlighted.append(orig)
+            results.append((sentence, 'OK', prediction['score']))
+    return results
 
-    return ' '.join(highlighted)
+def check_grammar_language_tool(text, tool):
+    matches = tool.check(text)
+    return matches
 
-def main():
-    st.set_page_config(page_title="Grammar Checker and Spell Checker", page_icon="✏️", layout="wide")
+st.title('Grammar and Spell Checker')
 
-    tokenizer, model = load_model()
+# Load models
+classifier = load_model()
+language_tool = load_language_tool()
 
-    user_input = st.text_area("Enter your text here:", height=200)
+# Text input
+text = st.text_area("Enter your text here:", height=200)
 
-    if st.button("Check Grammar and Spelling"):
-        if user_input:
-            with st.spinner("Processing with FLAN-T5..."):
-                corrected_text = correct_grammar(user_input, tokenizer, model)
-                highlighted_text = highlight_differences(user_input, corrected_text)
-
-            st.subheader("Corrected Text:")
-            st.markdown(highlighted_text, unsafe_allow_html=True)
-
-            st.subheader("Original vs Corrected:")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text_area("Original:", value=user_input, height=200, disabled=True)
-            with col2:
-                st.text_area("Corrected:", value=corrected_text, height=200, disabled=True)
-
+if st.button('Check Grammar and Spelling'):
+    if text:
+        st.subheader('Results:')
+        
+        # Transformer-based check
+        st.write("Transformer-based Grammar Check:")
+        results = check_grammar_transformers(text, classifier)
+        for sentence, status, confidence in results:
+            if status == 'Potential error':
+                st.markdown(f"<span style='background-color: yellow'>{sentence}</span> - Confidence: {confidence:.2f}", unsafe_allow_html=True)
+            else:
+                st.write(f"{sentence} - OK (Confidence: {confidence:.2f})")
+        
+        # LanguageTool check
+        st.write("\nDetailed Grammar and Spelling Check:")
+        matches = check_grammar_language_tool(text, language_tool)
+        if matches:
+            for match in matches:
+                st.markdown(f"<span style='color: red'>{match.ruleId}</span>: {match.message}", unsafe_allow_html=True)
+                st.markdown(f"Context: ...{match.context}...")
+                if match.replacements:
+                    st.markdown(f"Suggested replacement: {match.replacements[0]}")
+                st.write("---")
         else:
-            st.warning("Please enter some text to check.")
-
-
-if __name__ == "__main__":
-    main()
+            st.write("No issues found by LanguageTool.")
+    else:
+        st.write("Please enter some text to check.")

@@ -1,3 +1,5 @@
-streamlit 
-transformers 
+streamlit
+transformers
 torch
+nltk
+language-tool-python
